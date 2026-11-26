@@ -258,3 +258,33 @@ def test_alert_html_escaping(cfg):
     res = scoring.score(m, None, cfg)
     txt = alerts.token_alert(m, res, cfg, None, explain.fallback(m, res, None, [], 0))
     assert "&lt;B&gt;" in txt and "a&amp;b" in txt
+
+
+def test_rugcheck_report_parsing():
+    from scanner.sources import rugcheck
+    data = {"score_normalised": 15, "mintAuthority": None, "freezeAuthority": None,
+            "creator": "DEV", "creatorBalance": 30_000_000, "token": {"supply": 1_000_000_000_000_000, "decimals": 6},
+            "markets": [{"pubkey": "POOL" * 9, "liquidityA": "POOLVAULT" * 4, "lp": {"holders": []}}],
+            "topHolders": [{"address": "POOLVAULT" * 4, "owner": "POOL" * 9, "pct": 20.0, "insider": False},
+                           {"address": "A1", "owner": "O1", "pct": 4.0, "insider": True},
+                           {"address": "A2", "owner": "O2", "pct": 3.0, "insider": False}],
+            "risks": []}
+    r = rugcheck._from_report(data)
+    assert r["top10_pct"] == 7.0            # pool excluded
+    assert r["dev_pct"] == pytest.approx(3.0)
+    assert r["insiders_pct"] == 4.0 and r["insiders_count"] == 1
+    assert not r["mint_authority"] and r["full"]
+
+
+def test_holder_limits(cfg):
+    m = dex.metrics(pair("A", "A", "M"))
+    clean = scoring.score(m, {"score": 10, "danger": [], "top10_pct": 15, "dev_pct": 1, "insiders_pct": 5,
+                              "insiders_count": 2, "full": True}, cfg)
+    dirty = scoring.score(m, {"score": 10, "danger": [], "top10_pct": 45, "dev_pct": 12, "insiders_pct": 30,
+                              "insiders_count": 9, "full": True}, cfg)
+    assert clean["parts"]["safety"] > dirty["parts"]["safety"]
+    assert any("dev" in f for f in dirty["flags"]) and any("Insiders" in f for f in dirty["flags"])
+    rej = scoring.score(m, {"score": 10, "danger": [], "insiders_pct": 55, "full": True}, cfg)
+    assert rej["rejected"]
+    txt = alerts.token_alert(m, clean, cfg, None, explain.fallback(m, clean, None, [], 0))
+    assert "Top10 15.0%" in txt and "Dev 1.0%" in txt
