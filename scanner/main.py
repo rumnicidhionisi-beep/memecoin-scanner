@@ -117,8 +117,8 @@ def main():
     cfg = load_config(a.config)
     s = cfg["secrets"]
     tg = Telegram(s["telegram_token"], s["telegram_chat_id"], dry_run=a.dry_run)
-    if not (s["telegram_token"] and s["telegram_chat_id"]) and not a.dry_run:
-        log.warning("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID missing — printing messages only")
+    if not (tg.token and tg.chat_id) and not a.dry_run:
+        log.warning("Telegram not ready (token or chat id missing) — printing messages only")
 
     if a.test_telegram:
         ok = tg.send("✅ Memecoin scanner συνδέθηκε.\nΠηγές: "
