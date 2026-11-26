@@ -49,6 +49,8 @@ jobs:
         if: ${{ !inputs.test_telegram }}
         run: python -m scanner.main --once --listen 60
 
+      - run: mkdir -p state
+
       - uses: actions/cache/save@v4
         if: always()
         with:
