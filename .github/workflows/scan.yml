@@ -1,0 +1,56 @@
+name: Memecoin scanner
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"     # κάθε 10 λεπτά (private repo: δες README για τα λεπτά)
+  workflow_dispatch:            # κουμπί "Run workflow" για χειροκίνητο τρέξιμο
+    inputs:
+      test_telegram:
+        description: "Στείλε δοκιμαστικό μήνυμα στο Telegram"
+        type: boolean
+        default: false
+
+concurrency:
+  group: scanner
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TWITTERAPI_IO_KEY: ${{ secrets.TWITTERAPI_IO_KEY }}
+      APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Μνήμη ανάμεσα στα τρεξίματα (τι έχει ήδη δει / ειδοποιήσει)
+      - uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: scanner-state-${{ github.run_id }}
+          restore-keys: scanner-state-
+
+      - name: Test Telegram
+        if: ${{ inputs.test_telegram }}
+        run: python -m scanner.main --test-telegram
+
+      - name: Scan (+ 1 λεπτό ακρόαση νέων pump.fun)
+        if: ${{ !inputs.test_telegram }}
+        run: python -m scanner.main --once --listen 60
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: state
+          key: scanner-state-${{ github.run_id }}
