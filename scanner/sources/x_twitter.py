@@ -76,6 +76,9 @@ def _search(key: str, query: str, max_pages: int = 3, qtype: str = "Latest") -> 
                         headers={"X-API-Key": key})
         if not data:
             break
+        if data.get("status") == "error":
+            log.warning("X API error: %s", str(data.get("msg") or data.get("message"))[:200])
+            break
         tweets = data.get("tweets") or (data.get("data") or {}).get("tweets") or []
         out.extend(tweets)
         if not data.get("has_next_page") or not data.get("next_cursor"):
@@ -140,6 +143,23 @@ def mentions(key: str, symbol: str, mint: str, limit: int = 6) -> list[dict]:
     tweets = _search(key, q, max_pages=1, qtype="Top")
     tweets.sort(key=lambda t: (t.get("likeCount") or 0), reverse=True)
     return [_norm(t, 2) for t in tweets[:limit]]
+
+
+def check(key: str) -> str:
+    """Connection test for --test-telegram: read @elonmusk's latest tweet."""
+    if not key:
+        return "✗ (λείπει TWITTERAPI_IO_KEY)"
+    data = get_json(f"{BASE}/twitter/user/last_tweets", params={"userName": "elonmusk"},
+                    headers={"X-API-Key": key})
+    if not data:
+        return "✗ (το key δεν δουλεύει ή δεν έχει credits)"
+    if data.get("status") == "error":
+        return f"✗ ({str(data.get('msg'))[:80]})"
+    tweets = (data.get("data") or {}).get("tweets") or data.get("tweets") or []
+    if not tweets:
+        return "✓ συνδέθηκε (κανένα tweet δεν επιστράφηκε)"
+    age_min = (time.time() - _parse_time(tweets[0].get("createdAt"))) / 60
+    return f"✓ (τελευταίο tweet @elonmusk πριν {age_min:.0f} λεπτά)"
 
 
 def account_age_days(key: str, handle: str) -> float | None:
