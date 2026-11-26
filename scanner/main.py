@@ -14,7 +14,7 @@ import time
 
 from . import agents, alerts, narratives as nar
 from .config import load_config
-from .sources import pumpportal
+from .sources import pumpportal, x_twitter
 from .store import Store
 from .telegram import Telegram
 
@@ -122,7 +122,7 @@ def main():
 
     if a.test_telegram:
         ok = tg.send("✅ Memecoin scanner συνδέθηκε.\nΠηγές: "
-                     f"X {'✓' if s['twitterapi_key'] else '✗ (λείπει TWITTERAPI_IO_KEY)'} · "
+                     f"X {x_twitter.check(s['twitterapi_key'])} · "
                      f"TikTok {'✓' if s['apify_token'] else '✗'} · "
                      f"Claude {'✓' if s['anthropic_key'] else '✗ (χωρίς εξηγήσεις AI)'} · "
                      "Ειδήσεις ✓ · DexScreener ✓ · RugCheck ✓ · pump.fun ✓\n"
