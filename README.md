@@ -1,0 +1,125 @@
+# 🛰️ Memecoin Narrative Scanner
+
+Βρίσκει **όσο πιο νωρίς γίνεται** τα Solana memecoins που βγαίνουν πάνω σε μια είδηση, ένα tweet, μια **απάντηση** ή ένα **retweet** διάσημου ή KOL. Σου στέλνει στο Telegram **γιατί βγήκε, τι έγινε, αν έχει περιθώριο να γίνει viral και πόσο νωρίς είσαι**.
+
+> ⚠️ Δεν αγοράζει τίποτα. Σου δίνει το σήμα και την απόφαση την παίρνεις εσύ στο Padre.
+
+---
+
+## Τι κάνει
+
+**Agent 1 — Αφηγήματα (X + ειδήσεις + TikTok)**
+- Διαβάζει posts, **απαντήσεις, retweets και quotes** από Musk, Τραμπ, CZ, Vance, WhiteHouse, Toly, μεγάλους KOLs και viral tweets για memecoins.
+- Στις απαντήσεις τραβάει και **το tweet στο οποίο απάντησαν**. Έτσι, αν ο Musk γράψει «Will answer shortly» κάτω από post για το Asteroid, ο scanner καταλαβαίνει ότι το αφήγημα είναι το «Asteroid».
+- Αν ένας KOL γράψει **contract address** στο tweet, πάει κατευθείαν σε αυτό.
+- Ψάχνει το νόμισμα στο DexScreener. Τα **φρέσκα αφηγήματα (< 90 λεπτά) τα ξαναψάχνει σε κάθε κύκλο**, γιατί το νόμισμα συχνά βγαίνει λίγα λεπτά μετά το tweet.
+- Από πολλά αντίγραφα με το ίδιο όνομα στέλνει μόνο τον **leader** (σωστό όνομα + μεγαλύτερος όγκος).
+
+**Agent 2 — On-chain (DexScreener + pump.fun)**
+- **Early lane:** νομίσματα κάτω της 1 ώρας που **πέρασαν ήδη τα $50K MC**, με πραγματικό όγκο και όχι micro-bots. Σε αυτά δεν θέλεις να αργήσεις.
+- **Survivors lane:** 1–48 ώρες, MC > $80K, ανεβαίνουν (τα παλιά σου φίλτρα).
+- Αν βρει νόμισμα χωρίς γνωστό αφήγημα, **ψάχνει στο X ποιος μιλάει γι' αυτό**, για να σου εξηγήσει γιατί υπάρχει.
+- **Live mode:** κάθε νέο pump.fun token με όνομα από φρέσκο αφήγημα μπαίνει σε παρακολούθηση. Τη στιγμή που πιάνει κίνηση, φεύγει alert.
+
+### Τα μηνύματα στο Telegram
+| Μήνυμα | Πότε |
+|---|---|
+| 🔥 **ΖΕΣΤΟ** / 🟢 **ΣΗΜΑ** | Αμέσως, όταν βρεθεί νόμισμα (σκορ ≥ 80 / ≥ 55) |
+| 📣 **Νέο αφήγημα** | Αμέσως, όταν διάσημος γράψει κάτι meme-ικό και δεν υπάρχει ακόμα token (θέλει Claude key) |
+| ⚡ **Μόλις φτιάχτηκε στο pump.fun** | Live mode, για αφηγήματα tier-1 |
+| 🗞️ **Σύνοψη** | Κάθε 30' (ή κάθε ώρα): νομίσματα, αφηγήματα, ειδήσεις του διαστήματος |
+
+Κάθε σήμα νομίσματος έχει:
+- ❓ **Γιατί βγήκε**
+- 📰 **Τι έγινε:** ποιος έγραψε ή απάντησε τι, σε ποιον
+- 🟢🟡🔴 **Περιθώριο να γίνει viral:** μέγεθος λογαριασμού, engagement, αν είναι ήδη γνωστό, πόσα αντίγραφα υπάρχουν
+- ⏱️ **Πόσο νωρίς είσαι:** ηλικία, MC
+- ⚠️ **Κίνδυνος**
+- το contract (CA) και links για DexScreener, RugCheck, Bubblemaps, X
+
+Με `ANTHROPIC_API_KEY` την εξήγηση τη γράφει ο Claude. Χωρίς αυτό βγαίνει απλούστερη εξήγηση από κανόνες.
+
+### Σκορ (0–100)
+| Κομμάτι | Μέγ. | Τι μετράει |
+|---|---|---|
+| Αφήγημα | 30 | δύναμη λογαριασμού και engagement, πόσο ταιριάζει το όνομα, contract μέσα στο tweet |
+| Αγορά | 30 | ρευστότητα, όγκος, μέσο trade (κόβει bots), αγοραστές > πωλητές **με** άνοδο τιμής, μοτίβο παγίδας, fake volume |
+| Ταχύτητα | 20 | ≥ $50K MC σε < 30' = 20, σε < 1 ώρα = 15. Πάνω από $5M = «μάλλον όχι νωρίς» |
+| Ασφάλεια | 20 | RugCheck, mint/freeze authority (= απόρριψη), top10, λογαριασμός X < 7 ημερών |
+
+---
+
+## Εγκατάσταση
+
+### 1. Secrets
+**Settings → Secrets and variables → Actions → New repository secret**
+
+| Secret | | Πού το βρίσκεις | Κόστος/μήνα |
+|---|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | ✅ | @BotFather | δωρεάν |
+| `TELEGRAM_CHAT_ID` | προαιρετικό | αν λείπει, ο scanner το βρίσκει μόνος του μόλις στείλεις /start στο bot | δωρεάν |
+| `TWITTERAPI_IO_KEY` | ✅ **η καρδιά του scanner** | twitterapi.io | ~$5–15 (πληρώνεις ανά tweet, ~$0.15/1000) |
+| `ANTHROPIC_API_KEY` | ✅ προτείνεται | console.anthropic.com | ~$3–10 (Haiku) |
+| `APIFY_TOKEN` | προαιρετικό | apify.com | ~$5–15 (TikTok κάθε 3 ώρες) |
+
+Χωρίς key για το X δουλεύουν μόνο οι ειδήσεις και το on-chain κομμάτι.
+
+### 2. Δοκιμή
+**Actions → Memecoin scanner → Run workflow →** τσέκαρε «Στείλε δοκιμαστικό μήνυμα». Πρέπει να σου έρθει ✅ στο Telegram με τις πηγές που είναι ενεργές.
+
+---
+
+## Ταχύτητα: GitHub Actions ή server;
+
+| | GitHub Actions | Server ~$5/μήνα (**προτείνεται**) |
+|---|---|---|
+| Έλεγχος X | κάθε ~10' (το GitHub συχνά καθυστερεί 5–15') | **κάθε 60 δευτερόλεπτα** |
+| Νέα pump.fun tokens | μόνο 1 λεπτό σε κάθε τρέξιμο | **όλα, τη στιγμή που φτιάχνονται** |
+| Κόστος | δωρεάν σε public repo. Σε private repo τα 2.000 δωρεάν λεπτά τελειώνουν σε ~1 εβδομάδα με τρέξιμο κάθε 10' | ~$5 |
+
+Στα memecoins μετράει το λεπτό, οπότε για να είσαι από τους πρώτους **βάλ' το σε server**:
+```bash
+git clone <repo> && cd <repo>
+pip install -r requirements.txt
+cp .env.example .env            # βάλε τα keys
+python -m scanner.main --test-telegram
+nohup python -m scanner.main --live --every 5 &
+```
+Σε live mode:
+- **X κάθε 60''**,
+- πλήρης σάρωση (ειδήσεις, TikTok, DexScreener) κάθε 5',
+- **όλα τα νέα pump.fun tokens** σε πραγματικό χρόνο,
+- σύνοψη κάθε 30'.
+
+Αν μείνεις στο GitHub Actions με private repo, άλλαξε το `cron` σε `"*/30 * * * *"` για να χωράς στα δωρεάν λεπτά.
+
+---
+
+## Ρυθμίσεις (`config.yaml`, χωρίς κώδικα)
+- **Λογαριασμοί X:** `x.tier1` / `x.tier2`. Πρόσθεσε όποιον θέλεις.
+- **Σύνοψη:** `alerts.digest_every_minutes: 30` (ή `60`).
+- **Early lane:** `onchain.early.min_market_cap: 50000`, `max_age_hours: 1`.
+- **Νομίσματα πάνω σε αφήγημα:** από `matching.min_market_cap: 10000`.
+- **Ελάχιστο σκορ για άμεσο μήνυμα:** `alerts.min_score: 55`.
+
+## Τοπική δοκιμή
+```bash
+python -m scanner.main --once --dry-run    # τυπώνει τα μηνύματα αντί να τα στέλνει
+python -m pytest -q
+```
+
+## Όρια
+- Στο tweet του Musk τα sniper bots αγοράζουν σε δευτερόλεπτα. Ο scanner σε φέρνει **στα πρώτα λεπτά**, όχι στο πρώτο block. Το πλεονέκτημά σου είναι να ξέρεις **ποιο** από τα αντίγραφα έχει κοινό και να αποφεύγεις τα rugs.
+- Στα νομίσματα κάτω της 1 ώρας ο κίνδυνος από snipers και bundles είναι μεγάλος. Bundles, snipers, dev % και insiders **δεν** τα βλέπει δωρεάν API, οπότε έλεγξέ τα στο Padre πριν μπεις.
+- Τα περισσότερα memecoins πάνε στο μηδέν. Κάνε πρώτα paper test.
+
+## Δομή
+```
+scanner/main.py         --once / --live / --listen / --dry-run / --test-telegram
+scanner/agents.py       Agent 1 (αφηγήματα) + Agent 2 (on-chain) + σύνοψη
+scanner/narratives.py   post → λέξεις-κλειδιά (Claude ή κανόνες)
+scanner/explain.py      «γιατί βγήκε / περιθώριο / πόσο νωρίς» (Claude ή κανόνες)
+scanner/scoring.py      lanes + σκορ
+scanner/alerts.py       μηνύματα Telegram
+scanner/sources/        x_twitter, news, tiktok, dexscreener, rugcheck, pumpportal
+```
