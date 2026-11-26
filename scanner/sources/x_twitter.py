@@ -97,7 +97,7 @@ def tweets_by_ids(key: str, ids: list[str]) -> dict[str, dict]:
     return out
 
 
-def fetch(cfg: dict, key: str, since_ts: float) -> list[dict]:
+def fetch(cfg: dict, key: str, since_ts: float, general_viral: bool = False) -> list[dict]:
     if not key:
         log.info("X: no TWITTERAPI_IO_KEY — skipped")
         return []
@@ -120,6 +120,16 @@ def fetch(cfg: dict, key: str, since_ts: float) -> list[dict]:
         q = f"{vs.get('query', 'memecoin')} min_faves:{int(vs.get('min_likes', 1000))} since_time:{since}"
         for t in _search(key, q, max_pages=1):
             posts.append(_norm(t, 3))
+
+    vg = xc.get("viral_general") or {}
+    if general_viral and vg.get("enabled"):
+        since_v = int(time.time() - float(vg.get("window_hours", 3)) * 3600)
+        q = f"{vg.get('query', 'lang:en')} min_faves:{int(vg.get('min_likes', 50000))} since_time:{since_v}"
+        n = 0
+        for t in _search(key, q, max_pages=1, qtype="Top"):
+            posts.append(_norm(t, 3))
+            n += 1
+        log.info("X: %d viral tweets (general)", n)
 
     # context for replies: what did they reply to?
     need = [p["reply_to_id"] for p in posts if p["kind"] == "reply" and p["reply_to_id"]]
