@@ -19,6 +19,8 @@ very really what when where who why how get got go going make made one two three
 breaking news update crypto coin coins token tokens memecoin memecoins meme memes solana sol pump pumpfun fun
 bitcoin btc eth ethereum price market markets trading trade buy sell holders chart dex fyp foryou viral tiktok
 mr ms said says say here there about after before over under up down out off day week year time people like
+elon musk donald trump jd vance vitalik buterin changpeng zhao binance saylor jensen huang nvidia tesla spacex
+white house president senate congress sec fed reuters bloomberg cnbc cointelegraph decrypt google says report
 """.split())
 
 GENERIC_TICKERS = {"BTC", "ETH", "SOL", "USDC", "USDT", "BNB", "XRP", "DOGE", "USD", "AI", "CEO", "US", "USA"}
