@@ -47,6 +47,13 @@ def token_alert(m: dict, res: dict, cfg: dict, narrative: dict | None, ex: dict,
         f"⏱️ <b>Πόσο νωρίς:</b> {esc(ex['early'])}",
         f"⚠️ <b>Κίνδυνος:</b> {esc(ex['risk'])}",
     ]
+    h = res.get("holders") or {}
+    if h.get("top10_pct") is not None or h.get("dev_pct") is not None:
+        def _p(v):
+            return "?" if v is None else f"{v:.1f}%"
+        lines.append(f"👥 <b>Holders:</b> Top10 {_p(h.get('top10_pct'))} · Dev {_p(h.get('dev_pct'))} · "
+                     f"Insiders {_p(h.get('insiders_pct'))}"
+                     f"{' (' + str(h.get('insiders_count')) + ')' if h.get('insiders_count') else ''}")
     if narrative and narrative.get("url"):
         lines.append(f'🔗 <a href="{esc(narrative["url"])}">Η ανάρτηση</a>')
     extra = [f for f in res["flags"] if f != ex["risk"]][:3]
@@ -57,7 +64,7 @@ def token_alert(m: dict, res: dict, cfg: dict, narrative: dict | None, ex: dict,
         "",
         f"<code>{esc(m['mint'])}</code>",
         _links(m["mint"], m.get("url", "")),
-        "Πριν μπεις → Padre: Bundles ≤5% · Snipers ≤10% · Dev ≤5% · Insiders ≤20% · Dev tokens 1–2",
+        "Bundles/snipers δεν φαίνονται δωρεάν → γρήγορη ματιά στο Padre (Bundles ≤5%, Snipers ≤10%) πριν μπεις.",
     ]
     return "\n".join(lines)
 

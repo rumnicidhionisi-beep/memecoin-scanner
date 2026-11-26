@@ -79,14 +79,30 @@ def score(m: dict, rug: dict | None, cfg: dict, narrative: dict | None = None,
         if rs is not None:
             safety = 20 if rs <= 20 else 12 if rs <= 40 else 6
             reasons.append(f"RugCheck {rs}/100")
-        if rug.get("top10_pct") is not None and rug["top10_pct"] > sc.get("max_top10_pct", 30):
+        # --- the Padre checks: top10 / dev / insiders ---
+        t10, dev, ins = rug.get("top10_pct"), rug.get("dev_pct"), rug.get("insiders_pct")
+        if t10 is not None and t10 > sc.get("max_top10_pct", 25):
             safety -= 8
-            flags.append(f"Top10 κατέχουν {rug['top10_pct']:.0f}%")
+            flags.append(f"Top10 κατέχουν {t10:.0f}% (όριο {sc.get('max_top10_pct', 25)}%)")
+        if dev is not None and dev > sc.get("max_dev_pct", 5):
+            safety -= 6
+            flags.append(f"Ο dev κρατάει {dev:.1f}%")
+        if ins is not None and ins > sc.get("reject_insiders_pct", 40):
+            rejected = rejected or f"Insiders {ins:.0f}%"
+        elif ins is not None and ins > sc.get("max_insiders_pct", 20):
+            safety -= 8
+            flags.append(f"Insiders κρατάνε {ins:.0f}% ({rug.get('insiders_count')} πορτοφόλια)")
+        if rug.get("full") and t10 is not None and t10 <= sc.get("max_top10_pct", 25) \
+                and (dev is None or dev <= sc.get("max_dev_pct", 5)) and (ins or 0) <= sc.get("max_insiders_pct", 20):
+            safety += 3
+            reasons.append(f"Holders καθαροί: Top10 {t10:.0f}% · Dev {dev or 0:.1f}% · Insiders {ins or 0:.0f}%")
         for d in rug.get("danger", [])[:3]:
             flags.append(f"⚠️ {d}")
     if x_age_days is not None and x_age_days < sc.get("min_x_account_age_days", 7):
         safety -= 8
         flags.append(f"Λογαριασμός X μόλις {x_age_days:.0f} ημερών (σημάδι rug)")
+
+    safety = min(20, safety)
 
     # ---------- market (max 30) ----------
     market = 0
@@ -148,5 +164,6 @@ def score(m: dict, rug: dict | None, cfg: dict, narrative: dict | None = None,
 
     flags = [f for f in flags if f]
     total = max(0, min(100, safety + market + speed + narr))
-    return {"score": total, "rejected": rejected, "reasons": reasons, "flags": flags,
+    holders = {k: rug.get(k) for k in ("top10_pct", "dev_pct", "insiders_pct", "insiders_count")} if rug else {}
+    return {"score": total, "rejected": rejected, "reasons": reasons, "flags": flags, "holders": holders,
             "parts": {"safety": safety, "market": market, "speed": speed, "narrative": narr}}

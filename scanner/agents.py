@@ -72,8 +72,12 @@ def collect_posts(cfg: dict, store, sources=("x", "tiktok", "news")) -> list[dic
     posts = []
     if "x" in sources and cfg.get("x", {}).get("enabled"):
         since = store.cursor("x_since") or now - 15 * 60
-        posts += x_twitter.fetch(cfg, s["twitterapi_key"], since - 60)  # 1-min overlap
+        vg = cfg.get("x", {}).get("viral_general") or {}
+        viral_due = now - (store.cursor("x_viral_last") or 0) >= vg.get("every_minutes", 30) * 60
+        posts += x_twitter.fetch(cfg, s["twitterapi_key"], since - 60, general_viral=viral_due)
         store.set_cursor("x_since", now)
+        if viral_due and s["twitterapi_key"]:
+            store.set_cursor("x_viral_last", now)
     tc = cfg.get("tiktok", {})
     if "tiktok" in sources and tc.get("enabled"):
         last = store.cursor("tiktok_last") or 0
