@@ -85,7 +85,7 @@ def explain(m: dict, res: dict, narrative: dict | None, mentions: list[dict], co
         return base
     out = post_json(
         "https://api.anthropic.com/v1/messages",
-        {"model": model, "max_tokens": 700, "messages": [
+        {"model": model, "max_tokens": 1200, "messages": [
             {"role": "user", "content": PROMPT + json.dumps(_facts(m, res, narrative, mentions, copies),
                                                             ensure_ascii=False)}]},
         headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
@@ -94,8 +94,9 @@ def explain(m: dict, res: dict, narrative: dict | None, mentions: list[dict], co
     if not out:
         return base
     text = "".join(b.get("text", "") for b in out.get("content", []) if b.get("type") == "text")
-    mm = re.search(r"\{.*\}", text, re.S)
+    mm = re.search(r"\{.*\}", re.sub(r"```(?:json)?", "", text), re.S)
     if not mm:
+        log.warning("Claude explanation not parseable: %s", text[:200].replace("\n", " "))
         return base
     try:
         data = json.loads(mm.group(0))

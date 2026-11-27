@@ -28,7 +28,9 @@ def get_json(url, params=None, headers=None, timeout=20, retries=2):
 def post_json(url, payload, headers=None, timeout=60):
     try:
         r = SESSION.post(url, json=payload, headers=headers, timeout=timeout)
-        r.raise_for_status()
+        if r.status_code >= 400:
+            log.warning("POST %s -> HTTP %s: %s", url.split("?")[0], r.status_code, r.text[:300])
+            return None
         return r.json()
     except (requests.RequestException, ValueError) as e:
         log.warning("POST %s failed: %s", url.split("?")[0], e)

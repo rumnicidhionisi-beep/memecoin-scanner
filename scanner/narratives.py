@@ -34,6 +34,7 @@ contract). Celebrity REPLIES to small accounts are often the strongest signal. I
 Return ONLY JSON: a list of objects {"i": <post index>, "meme": true/false, "strength": 1-10,
 "keywords": [1-4 short words/phrases a coin would be NAMED, e.g. "asteroid", "kekius", "broccoli"],
 "why": "<max 12 words, in Greek>"}.
+Include EVERY post index. Keep it compact: no markdown, no text outside the JSON list.
 
 POSTS:
 """
@@ -64,30 +65,47 @@ def heuristic_keywords(text: str) -> list[str]:
     return out[:5]
 
 
+def parse_json_list(text: str) -> list | None:
+    """Robust: handles ```json fences, extra prose, and truncated output (salvages complete objects)."""
+    text = re.sub(r"```(?:json)?", "", text or "")
+    m = re.search(r"\[.*\]", text, re.S)
+    if m:
+        try:
+            out = json.loads(m.group(0))
+            if isinstance(out, list):
+                return out
+        except ValueError:
+            pass
+    objs = []
+    for chunk in re.findall(r"\{[^{}]*\}", text, re.S):
+        try:
+            objs.append(json.loads(chunk))
+        except ValueError:
+            continue
+    return objs or None
+
+
 def _claude(posts: list[dict], key: str, model: str) -> list[dict] | None:
     lines = []
     for i, p in enumerate(posts):
-        line = f"[{i}] ({p['source']}/{p.get('kind','post')} @{p.get('author','')}) {p['text'][:400]}"
+        line = f"[{i}] ({p['source']}/{p.get('kind','post')} @{p.get('author','')}) {p['text'][:300]}"
         if p.get("context"):
-            line += f"\n    CONTEXT (@{p.get('context_author','')}): {p['context'][:300]}"
+            line += f"\n    CONTEXT (@{p.get('context_author','')}): {p['context'][:250]}"
         lines.append(line)
     res = post_json(
         "https://api.anthropic.com/v1/messages",
-        {"model": model, "max_tokens": 2000,
+        {"model": model, "max_tokens": 4000,
          "messages": [{"role": "user", "content": PROMPT + "\n".join(lines)}]},
         headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-        timeout=90,
+        timeout=120,
     )
     if not res:
         return None
     text = "".join(b.get("text", "") for b in res.get("content", []) if b.get("type") == "text")
-    m = re.search(r"\[.*\]", text, re.S)
-    if not m:
-        return None
-    try:
-        return json.loads(m.group(0))
-    except ValueError:
-        return None
+    out = parse_json_list(text)
+    if out is None:
+        log.warning("Claude reply not parseable (stop=%s): %s", res.get("stop_reason"), text[:300].replace("\n", " "))
+    return out
 
 
 def extract(posts: list[dict], anthropic_key: str = "", model: str = "claude-haiku-5-5") -> list[dict]:
@@ -98,8 +116,8 @@ def extract(posts: list[dict], anthropic_key: str = "", model: str = "claude-hai
     judged = None
     if anthropic_key:
         judged = {}
-        for i in range(0, len(posts), 40):
-            batch = posts[i:i + 40]
+        for i in range(0, len(posts), 20):
+            batch = posts[i:i + 20]
             out = _claude(batch, anthropic_key, model)
             if out is None:
                 judged = None
