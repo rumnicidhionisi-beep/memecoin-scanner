@@ -97,7 +97,8 @@ def tweets_by_ids(key: str, ids: list[str]) -> dict[str, dict]:
     return out
 
 
-def fetch(cfg: dict, key: str, since_ts: float, general_viral: bool = False) -> list[dict]:
+def fetch(cfg: dict, key: str, since_ts: float, general_viral: bool = False,
+          memecoin_search: bool = True) -> list[dict]:
     if not key:
         log.info("X: no TWITTERAPI_IO_KEY — skipped")
         return []
@@ -108,15 +109,15 @@ def fetch(cfg: dict, key: str, since_ts: float, general_viral: bool = False) -> 
     replies = "" if xc.get("include_replies", True) else " -filter:replies"
 
     accounts = list(xc.get("tier1", [])) + list(xc.get("tier2", []))
-    for i in range(0, len(accounts), 12):  # query length limit
-        chunk = accounts[i:i + 12]
+    for i in range(0, len(accounts), 20):  # query length limit (~2 calls for 40 accounts)
+        chunk = accounts[i:i + 20]
         q = "(" + " OR ".join(f"from:{u}" for u in chunk) + f") since_time:{since}{replies}"
         for t in _search(key, q):
             author = ((t.get("author") or {}).get("userName") or "").lower()
             posts.append(_norm(t, 1 if author in tier1 else 2))
 
     vs = xc.get("viral_search") or {}
-    if vs.get("enabled"):
+    if vs.get("enabled") and memecoin_search:
         q = f"{vs.get('query', 'memecoin')} min_faves:{int(vs.get('min_likes', 1000))} since_time:{since}"
         for t in _search(key, q, max_pages=1):
             posts.append(_norm(t, 3))
