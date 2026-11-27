@@ -206,11 +206,14 @@ def test_narrative_only_alert_needs_claude(monkeypatch, cfg, store, tg):
 
 
 def test_onchain_early_coin_with_mentions(monkeypatch, cfg, store, tg):
+    cfg["secrets"]["twitterapi_key"] = "k"
+    monkeypatch.setattr(agents.x_twitter, "account_age_days", lambda *a: 400)
     monkeypatch.setattr(agents.dex, "latest_solana_tokens", lambda: ["E1"])
     monkeypatch.setattr(agents.dex, "pairs_for_tokens",
                         lambda mints: [pair("RUNNER", "Runner", "E1", age_h=0.4, mc=65000, v1=40000)])
     monkeypatch.setattr(agents.x_twitter, "mentions", lambda *a, **k: [
-        {"author": "kolguy", "followers": 120000, "likes": 900, "text": "$RUNNER the dog from the viral video"}])
+        {"author": "kolguy", "followers": 120000, "likes": 900, "text": "$RUNNER the dog from the viral video"},
+        {"author": "kol2", "followers": 8000, "likes": 50, "text": "$RUNNER"}])
     agents.onchain_agent(cfg, store, tg, {})
     assert len(tg.sent) == 1
     assert "γρήγορο νόμισμα" in tg.sent[0] and "@kolguy" in tg.sent[0]
@@ -288,3 +291,54 @@ def test_holder_limits(cfg):
     assert rej["rejected"]
     txt = alerts.token_alert(m, clean, cfg, None, explain.fallback(m, clean, None, [], 0))
     assert "Top10 15.0%" in txt and "Dev 1.0%" in txt
+
+
+def test_parse_claude_output():
+    assert nar.parse_json_list('```json\n[{"i":0,"meme":true}]\n```') == [{"i": 0, "meme": True}]
+    # truncated output -> salvage complete objects
+    out = nar.parse_json_list('[{"i":0,"meme":true,"keywords":["a"]},{"i":1,"meme":fal')
+    assert out == [{"i": 0, "meme": True, "keywords": ["a"]}]
+    assert nar.parse_json_list("sorry") is None
+
+
+def test_truth_social_feed(monkeypatch, cfg):
+    xml = """<rss><channel><item><title>Long post</title><link>https://www.trumpstruth.org/statuses/1</link>
+    <description>&lt;p&gt;My dog Buddy is the best dog in America!&lt;/p&gt;</description>
+    <pubDate>%s</pubDate></item></channel></rss>""" % time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime())
+    monkeypatch.setattr(news, "get_text", lambda url: xml if "trumpstruth" in url else None)
+    posts = news.fetch(cfg)
+    assert len(posts) == 1 and posts[0]["source"] == "truth" and posts[0]["tier"] == 1
+    assert "Buddy" in posts[0]["text"]
+
+
+def test_profile_change_and_new_follow(monkeypatch, cfg, store, tg):
+    from scanner.sources import x_watch
+    cfg["secrets"]["twitterapi_key"] = "k"
+    cfg["x"]["watch"] = {"enabled": True, "profiles": ["elonmusk"], "follows": ["elonmusk"],
+                         "profiles_every_minutes": 0, "follows_every_minutes": 0}
+    prof = {"name": "Elon Musk", "description": "", "picture": "a"}
+    fol = [{"handle": "old1", "name": "x", "bio": "", "followers": 10, "created": ""}]
+    monkeypatch.setattr(agents.x_watch, "profile", lambda k, h: dict(prof))
+    monkeypatch.setattr(agents.x_watch, "recent_followings", lambda k, h, n=20: list(fol))
+    agents.social_watch(cfg, store, tg, {})          # baseline
+    assert tg.sent == []
+    prof["name"] = "Kekius Maximus"
+    fol.insert(0, {"handle": "frogcoin", "name": "Frog", "bio": "$FROG on sol", "followers": 900, "created": ""})
+    stats = {}
+    agents.social_watch(cfg, store, tg, stats)
+    assert stats == {"profile_changes": 1, "new_follows": 1}
+    assert any("Kekius Maximus" in m for m in tg.sent) and any("frogcoin" in m for m in tg.sent)
+    kws = [k.lower() for n in store.active_narratives(24) for k in n["keywords"]]
+    assert "kekius" in kws and "frogcoin" in kws
+    assert x_watch.looks_crypto({"name": "Frog", "bio": "$FROG on sol"})
+
+
+def test_social_stats_and_fake_promo(cfg):
+    real = [{"author": f"a{i}", "followers": 10000, "likes": 10} for i in range(6)]
+    s = agents.social_stats(real, cfg)
+    assert s["authors"] == 6 and s["quality_authors"] == 6
+    m = dex.metrics(pair("A", "A", "M"))
+    good = scoring.score(m, {"score": 10, "danger": []}, cfg, social=s)
+    fake = scoring.score(m, {"score": 10, "danger": []}, cfg,
+                         social=agents.social_stats([{"author": "bot", "followers": 5, "likes": 0}] * 12, cfg))
+    assert good["score"] > fake["score"] and any("τεχνητή" in f for f in fake["flags"])
