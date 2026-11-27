@@ -9,7 +9,7 @@
 x:
   enabled: true
   include_replies: true        # οι απαντήσεις διασήμων είναι συχνά το πιο δυνατό σήμα
-  poll_seconds: 60             # live mode: έλεγχος X κάθε 60''
+  poll_seconds: 120            # live mode: έλεγχος X κάθε 2' (60 = πιο γρήγορα αλλά ~2x κόστος twitterapi)
   # tier 1 = διάσημοι: ό,τι γράφουν/απαντούν/κάνουν retweet μπορεί να γίνει memecoin σε λεπτά
   tier1:
     - elonmusk
@@ -59,6 +59,7 @@ x:
     enabled: true
     query: '("pump.fun" OR memecoin OR "new coin" OR "CA:") lang:en'
     min_likes: 1000
+    every_minutes: 10
   # Ό,τι γίνεται viral ΓΕΝΙΚΑ στο X τώρα (ζώα, memes, ατάκες) — εκεί γεννιούνται τα memecoins
   viral_general:
     enabled: true
