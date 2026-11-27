@@ -1,14 +1,21 @@
 name: Memecoin scanner
 
+# Κάθε τρέξιμο = «βάρδια» ~5h45' σε LIVE mode (X κάθε 2', pump.fun σε πραγματικό χρόνο,
+# πλήρης σάρωση κάθε 5'). Στο τέλος ξεκινάει μόνο του την επόμενη βάρδια.
+# Το cron είναι μόνο εφεδρεία, αν σπάσει η αλυσίδα.
 on:
   schedule:
-    - cron: "*/10 * * * *"     # κάθε 10 λεπτά (private repo: δες README για τα λεπτά)
-  workflow_dispatch:            # κουμπί "Run workflow" για χειροκίνητο τρέξιμο
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
     inputs:
       test_telegram:
         description: "Στείλε δοκιμαστικό μήνυμα στο Telegram"
         type: boolean
         default: false
+
+permissions:
+  actions: write
+  contents: read
 
 concurrency:
   group: scanner
@@ -17,7 +24,7 @@ concurrency:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 355
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -34,7 +41,6 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      # Μνήμη ανάμεσα στα τρεξίματα (τι έχει ήδη δει / ειδοποιήσει)
       - uses: actions/cache/restore@v4
         with:
           path: state
@@ -45,9 +51,9 @@ jobs:
         if: ${{ inputs.test_telegram }}
         run: python -m scanner.main --test-telegram
 
-      - name: Scan (+ 1 λεπτό ακρόαση νέων pump.fun)
+      - name: Live scanner (βάρδια ~5h40')
         if: ${{ !inputs.test_telegram }}
-        run: python -m scanner.main --once --listen 60
+        run: python -m scanner.main --live --every 5 --duration 20400
 
       - run: mkdir -p state
 
@@ -56,3 +62,9 @@ jobs:
         with:
           path: state
           key: scanner-state-${{ github.run_id }}
+
+      - name: Επόμενη βάρδια
+        if: ${{ always() && !inputs.test_telegram }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run scan.yml --ref main -R ${{ github.repository }}
