@@ -65,7 +65,7 @@ x:
     every_minutes: 30
     window_hours: 3
     min_likes: 50000
-    query: 'lang:en -filter:replies'
+    query: '(the OR a OR is OR you OR I OR this) lang:en -filter:replies'
 
 # --- TikTok (μέσω Apify) ---------------------------------------
 tiktok:
