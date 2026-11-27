@@ -79,21 +79,27 @@ class Listener:
             self.store.watch(mint, pid)
 
 
-async def live(cfg, store, tg, every_min: float):
+async def live(cfg, store, tg, every_min: float, duration_s: float | None = None):
     li = Listener(cfg, store, tg)
     stream = asyncio.create_task(pumpportal.stream(li.on_new_token))
     poll = cfg.get("x", {}).get("poll_seconds", 60)
     last_full = 0.0
-    while True:
+    end = time.time() + duration_s if duration_s else None
+    while end is None or time.time() < end:
         li.drain()
         full = time.time() - last_full >= every_min * 60
         await asyncio.to_thread(run_once, cfg, store, tg, not full)
         if full:
             last_full = time.time()
         li.refresh()
-        await asyncio.sleep(poll)
+        wait = poll if end is None else max(0.0, min(poll, end - time.time()))
+        await asyncio.sleep(wait)
         if stream.done():
             stream = asyncio.create_task(pumpportal.stream(li.on_new_token))
+    stream.cancel()
+    li.drain()
+    store.save()
+    log.info("Live shift finished")
 
 
 async def listen_for(cfg, store, tg, seconds: float):
@@ -108,6 +114,7 @@ def main():
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--listen", type=float, default=0, help="seconds to listen to new pump.fun coins after --once")
     ap.add_argument("--every", type=float, default=5, help="minutes between FULL scans in --live")
+    ap.add_argument("--duration", type=float, default=0, help="seconds to run --live (0 = forever)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--test-telegram", action="store_true")
     ap.add_argument("--config")
@@ -131,7 +138,7 @@ def main():
 
     store = Store()
     if a.live:
-        asyncio.run(live(cfg, store, tg, a.every))
+        asyncio.run(live(cfg, store, tg, a.every, a.duration or None))
     else:
         if a.listen > 0:  # listen first, so the scan right after already checks the new coins
             asyncio.run(listen_for(cfg, store, tg, a.listen))

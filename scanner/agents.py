@@ -74,8 +74,13 @@ def collect_posts(cfg: dict, store, sources=("x", "tiktok", "news")) -> list[dic
         since = store.cursor("x_since") or now - 15 * 60
         vg = cfg.get("x", {}).get("viral_general") or {}
         viral_due = now - (store.cursor("x_viral_last") or 0) >= vg.get("every_minutes", 30) * 60
-        posts += x_twitter.fetch(cfg, s["twitterapi_key"], since - 60, general_viral=viral_due)
+        vs = cfg.get("x", {}).get("viral_search") or {}
+        meme_due = now - (store.cursor("x_meme_last") or 0) >= vs.get("every_minutes", 10) * 60
+        posts += x_twitter.fetch(cfg, s["twitterapi_key"], since - 60, general_viral=viral_due,
+                                 memecoin_search=meme_due)
         store.set_cursor("x_since", now)
+        if meme_due and s["twitterapi_key"]:
+            store.set_cursor("x_meme_last", now)
         if viral_due and s["twitterapi_key"]:
             store.set_cursor("x_viral_last", now)
     tc = cfg.get("tiktok", {})
