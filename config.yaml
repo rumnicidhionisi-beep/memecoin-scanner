@@ -71,9 +71,9 @@ x:
 # --- TikTok (μέσω Apify) ---------------------------------------
 tiktok:
   enabled: true
-  every_minutes: 180          # κάθε 3 ώρες (για να μη ξοδεύεις)
-  hashtags: [memecoin, pumpfun, solana, memecoins, cryptotok]
-  results_per_hashtag: 20
+  every_minutes: 360          # κάθε 6 ώρες (~120 βίντεο/μέρα, για να χωράει στο budget του Apify)
+  hashtags: [memecoin, pumpfun, memecoins]
+  results_per_hashtag: 10
   min_views: 20000
   max_age_hours: 24
 
