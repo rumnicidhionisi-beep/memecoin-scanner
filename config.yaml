@@ -54,6 +54,13 @@ x:
     - PopBase
     - PopCrave
     - dexerto
+  # Ήσυχα σήματα: αλλαγές προφίλ (όνομα/bio/φωτό) και νέα follows διασήμων
+  watch:
+    enabled: true
+    profiles_every_minutes: 60
+    profiles: [elonmusk, realDonaldTrump, cz_binance, heyibinance, JDVance, DonaldJTrumpJr, MrBeast, DogeDesigner, saylor, aeyakovenko]
+    follows_every_minutes: 60
+    follows: [elonmusk, cz_binance, realDonaldTrump, heyibinance, aeyakovenko, a1lon9]
   # Viral tweets από οποιονδήποτε που μιλάνε για memecoin
   viral_search:
     enabled: true
@@ -86,7 +93,15 @@ news:
     - https://news.google.com/rss/search?q=Trump+crypto+when:1d&hl=en-US&gl=US&ceid=US:en
     - https://cointelegraph.com/rss
     - https://decrypt.co/feed
+  # Truth Social του Τραμπ (συχνά γράφει εκεί πριν το X)
+  truth_social:
+    - https://trumpstruth.org/feed
   must_contain_any: [memecoin, meme coin, musk, trump, viral, pump.fun, solana, dog, cat, frog]
+
+# --- Πόσο συζητιέται ένα νόμισμα στο X (για κάθε υποψήφιο) -----
+social:
+  enabled: true
+  quality_min_followers: 5000   # μετράμε μοναδικούς λογαριασμούς, όχι σκέτο αριθμό tweets (εύκολα στημένο)
 
 # --- Αντιστοίχιση αφηγήματος -> νόμισμα ----------------------
 matching:
