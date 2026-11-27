@@ -38,13 +38,27 @@ def fetch(cfg: dict, max_age_hours: float = 6) -> list[dict]:
     words = [w.lower() for w in nc.get("must_contain_any", [])]
     cutoff = time.time() - max_age_hours * 3600
     out = []
-    for feed in nc.get("feeds", []):
+    for feed in nc.get("feeds", []) + nc.get("truth_social", []):
         txt = get_text(feed)
         if not txt:
             continue
+        truth = "trumpstruth" in feed
         for it in parse_rss(txt):
             hay = (it["title"] + " " + it["desc"]).lower()
-            if it["ts"] < cutoff or (words and not any(w in hay for w in words)):
+            if it["ts"] < cutoff:
+                continue
+            if truth:  # every Trump post counts, no keyword filter
+                text = it["desc"] if len(it["desc"]) > len(it["title"]) else it["title"]
+                if not text or text.lower().startswith(("image post", "video post")) and len(text) < 40:
+                    continue
+                out.append({
+                    "source": "truth", "id": "truth:" + hashlib.sha1((it["link"] or text).encode()).hexdigest()[:16],
+                    "text": text[:500], "url": it["link"], "author": "realDonaldTrump (Truth Social)",
+                    "followers": 10_000_000, "likes": 0, "retweets": 0, "views": 0, "ts": it["ts"],
+                    "tier": 1, "kind": "post", "context": "", "context_author": "", "mints": [],
+                })
+                continue
+            if words and not any(w in hay for w in words):
                 continue
             out.append({
                 "source": "news",
