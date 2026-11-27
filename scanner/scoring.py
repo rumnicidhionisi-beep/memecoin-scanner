@@ -55,7 +55,8 @@ def x_handle(url: str) -> str | None:
 
 
 def score(m: dict, rug: dict | None, cfg: dict, narrative: dict | None = None,
-          match: float = 0.0, x_age_days: float | None = None, copies: int = 0) -> dict:
+          match: float = 0.0, x_age_days: float | None = None, copies: int = 0,
+          social: dict | None = None) -> dict:
     sc = cfg.get("safety", {})
     oc = cfg.get("onchain", {})
     reasons, flags = [], []
@@ -162,8 +163,19 @@ def score(m: dict, rug: dict | None, cfg: dict, narrative: dict | None = None,
         kind = {"reply": "απάντηση", "retweet": "retweet", "quote": "quote"}.get(narrative.get("kind"), "")
         reasons.insert(0, f"Αφήγημα: {who}{' (' + kind + ')' if kind else ''} → «{', '.join(narrative['keywords'][:3])}»")
 
+    # ---------- social on X (bonus, inside the narrative 30) ----------
+    if social and social.get("tweets"):
+        q = social.get("quality_authors", 0)
+        bonus = 8 if q >= 5 else 5 if q >= 2 else 2 if social.get("authors", 0) >= 5 else 0
+        if bonus:
+            narr = min(30, narr + bonus)
+            reasons.append(f"Συζητιέται στο X από {social['authors']} λογαριασμούς ({q} με 5K+ followers)")
+        elif social.get("tweets", 0) >= 10 and social.get("authors", 0) <= 2:
+            flags.append("Πολλά tweets από 1–2 λογαριασμούς — πιθανή τεχνητή προώθηση")
+
     flags = [f for f in flags if f]
     total = max(0, min(100, safety + market + speed + narr))
     holders = {k: rug.get(k) for k in ("top10_pct", "dev_pct", "insiders_pct", "insiders_count")} if rug else {}
     return {"score": total, "rejected": rejected, "reasons": reasons, "flags": flags, "holders": holders,
+            "social": social or {},
             "parts": {"safety": safety, "market": market, "speed": speed, "narrative": narr}}

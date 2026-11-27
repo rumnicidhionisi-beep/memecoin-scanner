@@ -34,7 +34,8 @@ def _facts(m: dict, res: dict, narrative: dict | None, mentions: list[dict], cop
                   "price_change_1h_pct": m["chg_1h"], "buys_1h": m["buys_1h"], "sells_1h": m["sells_1h"],
                   "has_dexscreener_profile": m["has_profile"], "twitter": m.get("twitter")},
         "coins_with_same_name": copies,
-        "score": res["score"], "flags": res["flags"],
+        "score": res["score"], "flags": res["flags"], "x_social": res.get("social"),
+        "holders": res.get("holders"),
     }
     if narrative:
         f["narrative"] = {k: narrative.get(k) for k in

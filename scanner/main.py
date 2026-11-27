@@ -31,6 +31,11 @@ def run_once(cfg, store, tg, fast: bool = False) -> dict:
             agents.narrative_agent(cfg, store, tg, stats)
     except Exception:  # one source failing must never kill the whole run
         log.exception("narrative agent failed")
+    if not fast:
+        try:
+            agents.social_watch(cfg, store, tg, stats)
+        except Exception:
+            log.exception("social watch failed")
     try:
         agents.onchain_agent(cfg, store, tg, stats)
     except Exception:

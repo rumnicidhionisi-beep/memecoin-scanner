@@ -11,12 +11,25 @@ import logging
 import time
 
 from . import alerts, explain, narratives as nar, scoring
-from .sources import dexscreener as dex, news, rugcheck, tiktok, x_twitter
+from .sources import dexscreener as dex, news, rugcheck, tiktok, x_twitter, x_watch
 
 log = logging.getLogger("scanner")
 
 
 # ---------------------------------------------------------------- shared
+def social_stats(mentions: list[dict], cfg: dict) -> dict:
+    """How much REAL attention a coin has on X. Mention counts are easy to fake, so we
+    weight unique authors and accounts with real followings."""
+    min_f = cfg.get("social", {}).get("quality_min_followers", 5000)
+    authors = {t["author"].lower() for t in mentions if t.get("author")}
+    quality = {t["author"].lower() for t in mentions if (t.get("followers") or 0) >= min_f}
+    big = sorted(mentions, key=lambda t: t.get("followers") or 0, reverse=True)[:3]
+    return {"tweets": len(mentions), "authors": len(authors), "quality_authors": len(quality),
+            "likes": sum(t.get("likes") or 0 for t in mentions),
+            "top": [f"@{t['author']} ({(t.get('followers') or 0):,})" for t in big if t.get("author")]}
+
+
+
 def best_narrative_for(m: dict, active: list[dict]) -> tuple[dict | None, float]:
     best, best_match, best_val = None, 0.0, 0.0
     for n in active:
@@ -42,6 +55,21 @@ def evaluate(m: dict, cfg: dict, store, tg, narrative=None, match=0.0, stats=Non
         if handle:
             x_age = x_twitter.account_age_days(s["twitterapi_key"], handle)
     res = scoring.score(m, rug, cfg, narrative, match, x_age, copies)
+    mentions = []
+    min_score = cfg.get("alerts", {}).get("min_score", 55)
+    # only look up X chatter for coins close to the alert line (saves twitterapi credits)
+    if not res["rejected"] and res["score"] >= min_score - 12 and s["twitterapi_key"] \
+            and cfg.get("social", {}).get("enabled", True):
+        cache = store.data.setdefault("social_cache", {})
+        hit = cache.get(m["mint"])
+        if hit and time.time() - hit["ts"] < 15 * 60:
+            mentions = hit["mentions"]
+        else:
+            mentions = x_twitter.mentions(s["twitterapi_key"], m["symbol"], m["mint"], limit=20)
+            cache[m["mint"]] = {"ts": time.time(), "mentions": mentions}
+            for k in [k for k, v in cache.items() if time.time() - v["ts"] > 3600]:
+                cache.pop(k, None)
+        res = scoring.score(m, rug, cfg, narrative, match, x_age, copies, social_stats(mentions, cfg))
     if stats is not None:
         stats["evaluated"] = stats.get("evaluated", 0) + 1
     if res["rejected"]:
@@ -52,8 +80,6 @@ def evaluate(m: dict, cfg: dict, store, tg, narrative=None, match=0.0, stats=Non
     ac = cfg.get("alerts", {})
     if res["score"] < ac.get("min_score", 55) or not store.should_alert(m["mint"], res["score"]):
         return res
-    # WHY does this coin exist? -> who talks about it on X
-    mentions = [] if narrative else x_twitter.mentions(s["twitterapi_key"], m["symbol"], m["mint"])
     ex = explain.explain(m, res, narrative, mentions, copies,
                          s["anthropic_key"] if ac.get("explain", True) else "", s["anthropic_model"])
     if tg.send(alerts.token_alert(m, res, cfg, narrative, ex, lane)):
@@ -193,6 +219,59 @@ def onchain_agent(cfg: dict, store, tg, stats: dict) -> None:
             continue
         evaluate(m, cfg, store, tg, n, match, stats, lane=lane)
     stats["onchain_checked"] = len(mints)
+
+
+# ---------------------------------------------------------------- watch famous accounts
+def social_watch(cfg: dict, store, tg, stats: dict) -> None:
+    """Profile/bio/name changes + new follows of famous accounts (quiet early signals)."""
+    key = cfg["secrets"]["twitterapi_key"]
+    wc = cfg.get("x", {}).get("watch") or {}
+    if not key or not wc.get("enabled", True):
+        return
+    import time as _t
+    now = _t.time()
+    snaps = store.data.setdefault("profiles", {})
+    follows = store.data.setdefault("follows", {})
+
+    if now - (store.cursor("watch_profiles_last") or 0) >= wc.get("profiles_every_minutes", 60) * 60:
+        store.set_cursor("watch_profiles_last", now)
+        for h in wc.get("profiles", []):
+            new = x_watch.profile(key, h)
+            if not new:
+                continue
+            changes = x_watch.profile_changes(snaps.get(h), new)
+            snaps[h] = new
+            if changes:
+                text = f"Ο @{h} άλλαξε " + " · ".join(changes)
+                tg.send(alerts.watch_alert("👤 Αλλαγή προφίλ", text, f"https://x.com/{h}"))
+                kws = nar.heuristic_keywords(new["name"] + " " + new["description"]) or [new["name"]]
+                store.add_narrative({"keywords": kws[:4], "source": "x", "author": h, "text": text,
+                                     "url": f"https://x.com/{h}", "weight": 1.6, "tier": 1,
+                                     "pid": f"profile:{h}:{int(now)}", "kind": "profile", "judged": True})
+                store.add_event({"type": "narrative", "author": h, "keywords": kws[:3],
+                                 "why": "αλλαγή προφίλ", "weight": 1.6})
+                stats["profile_changes"] = stats.get("profile_changes", 0) + 1
+
+    if now - (store.cursor("watch_follows_last") or 0) >= wc.get("follows_every_minutes", 60) * 60:
+        store.set_cursor("watch_follows_last", now)
+        for h in wc.get("follows", []):
+            latest = x_watch.recent_followings(key, h, 20)
+            if not latest:
+                continue
+            fresh = x_watch.new_follows(follows.get(h), latest)
+            follows[h] = list(dict.fromkeys([u["handle"] for u in latest] + (follows.get(h) or [])))[:200]
+            for u in fresh[:5]:
+                store.add_narrative({"keywords": [u["handle"]] + nar.heuristic_keywords(u["name"])[:2],
+                                     "source": "x", "author": h, "text": f"Ο @{h} ακολούθησε @{u['handle']}: {u['bio'][:150]}",
+                                     "url": f"https://x.com/{u['handle']}", "weight": 1.2, "tier": 1,
+                                     "pid": f"follow:{h}:{u['handle']}", "kind": "follow", "judged": True})
+                store.add_event({"type": "narrative", "author": h, "keywords": [u["handle"]],
+                                 "why": f"νέο follow ({u['followers']:,} followers)", "weight": 1.2})
+                if x_watch.looks_crypto(u):
+                    tg.send(alerts.watch_alert(
+                        "➕ Νέο follow", f"Ο @{h} ακολούθησε @{u['handle']} ({u['followers']:,} followers)\n«{u['bio'][:200]}»",
+                        f"https://x.com/{u['handle']}"))
+                stats["new_follows"] = stats.get("new_follows", 0) + 1
 
 
 # ---------------------------------------------------------------- digest

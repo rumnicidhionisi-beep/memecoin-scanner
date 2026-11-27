@@ -41,11 +41,18 @@ POSTS:
 
 
 def post_weight(p: dict) -> float:
+    import time as _t
     base = {1: 1.0, 2: 0.6, 3: 0.5}.get(p.get("tier", 2), 0.5)
     if p["source"] == "news":
         base = 0.4
+    if p["source"] == "truth":
+        base = 1.3  # Trump on Truth Social often posts before X
     eng = (p.get("likes") or 0) + 3 * (p.get("retweets") or 0) + (p.get("views") or 0) / 100
     boost = min(1.0, math.log10(1 + eng) / 6)  # ~1M engagement -> +1.0
+    # engagement VELOCITY (likes per minute) matters more than the total
+    age_min = max(1.0, (_t.time() - (p.get("ts") or _t.time())) / 60)
+    vel = (p.get("likes") or 0) / age_min
+    boost += min(0.5, math.log10(1 + vel) / 4)  # ~100 likes/min -> +0.5
     return round(min(2.0, base + boost), 3)
 
 

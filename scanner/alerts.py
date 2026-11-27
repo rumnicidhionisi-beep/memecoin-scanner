@@ -47,6 +47,11 @@ def token_alert(m: dict, res: dict, cfg: dict, narrative: dict | None, ex: dict,
         f"⏱️ <b>Πόσο νωρίς:</b> {esc(ex['early'])}",
         f"⚠️ <b>Κίνδυνος:</b> {esc(ex['risk'])}",
     ]
+    so = res.get("social") or {}
+    if so.get("tweets"):
+        lines.append(f"🗣️ <b>Στο X:</b> {so['tweets']} tweets · {so['authors']} λογαριασμοί · "
+                     f"{so['quality_authors']} με 5K+ followers"
+                     f"{' · π.χ. ' + esc(', '.join(so['top'][:2])) if so.get('top') else ''}")
     h = res.get("holders") or {}
     if h.get("top10_pct") is not None or h.get("dev_pct") is not None:
         def _p(v):
@@ -70,7 +75,7 @@ def token_alert(m: dict, res: dict, cfg: dict, narrative: dict | None, ex: dict,
 
 
 def narrative_alert(n: dict) -> str:
-    src = {"x": "𝕏", "tiktok": "🎵 TikTok", "news": "📰"}.get(n["source"], n["source"])
+    src = {"x": "𝕏", "tiktok": "🎵 TikTok", "news": "📰", "truth": "🇺🇸 Truth Social"}.get(n["source"], n["source"])
     kind = {"reply": " απάντησε", "retweet": " έκανε retweet", "quote": " έκανε quote"}.get(n.get("kind"), "")
     lines = [f"📣 <b>Νέο αφήγημα</b> — {src} @{esc(n.get('author',''))}{kind}",
              f"Πιθανό όνομα νομίσματος: <b>{esc(', '.join(n['keywords']))}</b>"]
@@ -119,4 +124,12 @@ def digest(events: list[dict], minutes: int, tz: str = "Europe/Athens") -> str:
             lines.append(f'• <a href="{esc(e["url"])}">{esc(e["text"][:110])}</a>')
     if len(lines) == 1:
         lines.append("Τίποτα σημαντικό σε αυτό το διάστημα.")
+    return "\n".join(lines)
+
+
+def watch_alert(title: str, text: str, url: str = "") -> str:
+    lines = [f"<b>{esc(title)}</b>", esc(text)]
+    if url:
+        lines.append(f'<a href="{esc(url)}">Άνοιγμα</a>')
+    lines.append("Ο scanner ψάχνει τώρα για νόμισμα με αυτό το όνομα και θα σου στείλει μόλις εμφανιστεί.")
     return "\n".join(lines)
